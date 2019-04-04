@@ -21,6 +21,7 @@ import java.io.{BufferedWriter, OutputStreamWriter}
 
 import org.apache.hadoop.fs.Path
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.{InternalRow, QueryPlanningTracker}
@@ -44,7 +45,7 @@ import org.apache.spark.util.Utils
 class QueryExecution(
     val sparkSession: SparkSession,
     val logical: LogicalPlan,
-    val tracker: QueryPlanningTracker = new QueryPlanningTracker) {
+    val tracker: QueryPlanningTracker = new QueryPlanningTracker) extends Logging {
 
   // TODO: Move the planner an optimizer into here from SessionState.
   protected def planner = sparkSession.sessionState.planner
@@ -58,8 +59,11 @@ class QueryExecution(
   }
 
   lazy val analyzed: LogicalPlan = tracker.measurePhase(QueryPlanningTracker.ANALYSIS) {
+    logInfo(s"start to analyze, plan:$logical")
     SparkSession.setActiveSession(sparkSession)
-    sparkSession.sessionState.analyzer.executeAndCheck(logical, tracker)
+    val p = sparkSession.sessionState.analyzer.executeAndCheck(logical, tracker)
+    logInfo(s"after analyze, plan: $p")
+    p
   }
 
   lazy val withCachedData: LogicalPlan = {
@@ -69,7 +73,10 @@ class QueryExecution(
   }
 
   lazy val optimizedPlan: LogicalPlan = tracker.measurePhase(QueryPlanningTracker.OPTIMIZATION) {
-    sparkSession.sessionState.optimizer.executeAndTrack(withCachedData, tracker)
+    logInfo(s"start to optimize, plan: $withCachedData")
+    val p = sparkSession.sessionState.optimizer.executeAndTrack(withCachedData, tracker)
+    logInfo(s"after optimize, plan: $p")
+    p
   }
 
   lazy val sparkPlan: SparkPlan = tracker.measurePhase(QueryPlanningTracker.PLANNING) {

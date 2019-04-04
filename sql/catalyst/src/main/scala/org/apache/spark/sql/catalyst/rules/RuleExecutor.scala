@@ -83,6 +83,7 @@ abstract class RuleExecutor[TreeType <: TreeNode[_]] extends Logging {
    * using the defined execution strategy. Within each batch, rules are also executed serially.
    */
   def execute(plan: TreeType): TreeType = {
+    logInfo(s"execute plan:\n$plan")
     var curPlan = plan
     val queryExecutionMetrics = RuleExecutor.queryExecutionMeter
     val planChangeLogger = new PlanChangeLogger()
@@ -105,15 +106,23 @@ abstract class RuleExecutor[TreeType <: TreeNode[_]] extends Logging {
       while (continue) {
         curPlan = batch.rules.foldLeft(curPlan) {
           case (plan, rule) =>
+            logInfo(s"execute rule: ${rule.ruleName}, plan:")
+            logInfo(s"$plan")
             val startTime = System.nanoTime()
             val result = rule(plan)
             val runTime = System.nanoTime() - startTime
             val effective = !result.fastEquals(plan)
 
             if (effective) {
+              logInfo(s"rule ${rule.ruleName} is effective")
               queryExecutionMetrics.incNumEffectiveExecution(rule.ruleName)
               queryExecutionMetrics.incTimeEffectiveExecutionBy(rule.ruleName, runTime)
-              planChangeLogger.log(rule.ruleName, plan, result)
+//              planChangeLogger.log(rule.ruleName, plan, result)
+              logWarning(
+                s"""
+                   |=== Applying Rule ${rule.ruleName} ===
+                   |${sideBySide(plan.treeString, result.treeString).mkString("\n")}
+                 """.stripMargin)
             }
             queryExecutionMetrics.incExecutionTimeBy(rule.ruleName, runTime)
             queryExecutionMetrics.incNumExecution(rule.ruleName)

@@ -839,6 +839,7 @@ object InferFiltersFromConstraints extends Rule[LogicalPlan]
   with PredicateHelper with ConstraintHelper {
 
   def apply(plan: LogicalPlan): LogicalPlan = {
+    logInfo(s"apply InferFiltersFromConstraints for play: $plan")
     if (SQLConf.get.constraintPropagationEnabled) {
       inferFilters(plan)
     } else {
